@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart CGPA Calculator</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="header-left">
+                    <h1><i class="fas fa-graduation-cap"></i> Smart CGPA Calculator</h1>
+                    <p class="subtitle">Calculate your CGPA with precision and insight</p>
+                </div>
+                <div class="header-right">
+                    <button id="darkModeToggle" class="btn-icon" title="Toggle dark mode">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                    <div class="dropdown">
+                        <button class="btn-icon" id="menuBtn" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                        <div class="dropdown-menu">
+                            <a href="#" id="exportJsonBtn"><i class="fas fa-download"></i> Export JSON</a>
+                            <a href="#" id="importJsonBtn"><i class="fas fa-upload"></i> Import JSON</a>
+                            <a href="#" id="customGradeBtn"><i class="fas fa-cog"></i> Grading System</a>
+                            <a href="#" id="resetBtn" class="danger"><i class="fas fa-redo"></i> Reset All</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="app-main">
+            <!-- Overview Cards -->
+            <section class="overview-section">
+                <div class="overview-grid">
+                    <div class="overview-card">
+                        <div class="overview-card-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="overview-card-content">
+                            <p class="overview-label">Overall CGPA</p>
+                            <p class="overview-value" id="overallCgpa">0.00</p>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="overview-card-icon">
+                            <i class="fas fa-book"></i>
+                        </div>
+                        <div class="overview-card-content">
+                            <p class="overview-label">Total Credits</p>
+                            <p class="overview-value" id="totalCredits">0</p>
+                        </div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="overview-card-icon">
+                            <i class="fas fa-bullseye"></i>
+                        </div>
+                        <div class="overview-card-content">
+                            <p class="overview-label">Target Status</p>
+                            <p class="overview-value" id="targetStatus" style="font-size: 0.9em;">-</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tabs Navigation -->
+            <div class="tabs-container">
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="semesters">
+                        <i class="fas fa-list"></i> Semesters
+                    </button>
+                    <button class="tab-btn" data-tab="analysis">
+                        <i class="fas fa-chart-bar"></i> Analysis
+                    </button>
+                    <button class="tab-btn" data-tab="target">
+                        <i class="fas fa-target"></i> Target CGPA
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab Contents -->
+            <section class="tab-content active" id="semesters-tab">
+                <div class="semesters-container" id="semestersContainer">
+                    <!-- Semesters add here -->
+                </div>
+                <button class="btn btn-primary btn-large" id="addSemesterBtn">
+                    <i class="fas fa-plus"></i> Add New Semester
+                </button>
+            </section>
+
+            <section class="tab-content" id="analysis-tab">
+                <div class="analysis-container">
+                    <!-- Chart -->
+                    <div class="analysis-section">
+                        <h3>SGPA Trend</h3>
+                        <canvas id="sgpaChart"></canvas>
+                    </div>
+
+                    <!-- Low Performers -->
+                    <div class="analysis-section">
+                        <h3>Low-Performing Subjects</h3>
+                        <div id="lowPerformers" class="low-performers-list">
+                            <p class="empty-state">No low-performing subjects found</p>
+                        </div>
+                    </div>
+
+                    <!-- Calculation Breakdown -->
+                    <div class="analysis-section">
+                        <h3>Calculation Breakdown</h3>
+                        <div class="breakdown-details" id="breakdownDetails">
+                            <p class="empty-state">Add subjects to see breakdown</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="tab-content" id="target-tab">
+                <div class="target-container">
+                    <div class="target-form">
+                        <h3>Target CGPA Calculator</h3>
+                        
+                        <div class="form-group">
+                            <label for="targetCgpaInput">Target CGPA</label>
+                            <div class="input-with-range">
+                                <input 
+                                    type="number" 
+                                    id="targetCgpaInput" 
+                                    min="0" 
+                                    max="10" 
+                                    step="0.1" 
+                                    value="8.5"
+                                    class="form-input"
+                                >
+                                <input 
+                                    type="range" 
+                                    id="targetCgpaRange" 
+                                    min="0" 
+                                    max="10" 
+                                    step="0.1" 
+                                    value="8.5"
+                                    class="form-range"
+                                >
+                            </div>
+                            <small class="hint">Set your desired CGPA (0-10)</small>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="futureCourses">Future Courses</label>
+                                <input 
+                                    type="number" 
+                                    id="futureCourses" 
+                                    min="1" 
+                                    value="8"
+                                    class="form-input"
+                                >
+                                <small class="hint">Number of courses remaining</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="creditsPerCourse">Credits per Course</label>
+                                <input 
+                                    type="number" 
+                                    id="creditsPerCourse" 
+                                    min="0.5" 
+                                    step="0.5"
+                                    value="3"
+                                    class="form-input"
+                                >
+                                <small class="hint">Average credits per course</small>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary btn-large" id="calculateTargetBtn">
+                            <i class="fas fa-calculator"></i> Calculate Required Grades
+                        </button>
+                    </div>
+
+                    <div class="target-results" id="targetResults" style="display: none;">
+                        <h3>Target Analysis</h3>
+                        <div class="results-grid">
+                            <div class="result-card">
+                                <p class="result-label">Current CGPA</p>
+                                <p class="result-value" id="resultCurrentCgpa">-</p>
+                            </div>
+                            <div class="result-card">
+                                <p class="result-label">Target CGPA</p>
+                                <p class="result-value" id="resultTargetCgpa">-</p>
+                            </div>
+                            <div class="result-card">
+                                <p class="result-label">Required Average Grade</p>
+                                <p class="result-value" id="resultRequiredGrade">-</p>
+                            </div>
+                            <div class="result-card">
+                                <p class="result-label">Average Grade Points</p>
+                                <p class="result-value" id="resultGradePoints">-</p>
+                            </div>
+                        </div>
+                        
+                        <div class="result-message" id="achievabilityMessage"></div>
+                        
+                        <div class="result-details">
+                            <p><strong>Points Needed:</strong> <span id="resultPointsNeeded">-</span></p>
+                            <p><strong>Current Credits:</strong> <span id="resultCurrentCredits">-</span></p>
+                            <p><strong>Future Credits:</strong> <span id="resultFutureCredits">-</span></p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal: Add/Edit Subject -->
+    <div id="subjectModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="subjectModalTitle">Add Subject</h2>
+                <button class="modal-close" onclick="closeSubjectModal()">&times;</button>
+            </div>
+            <form id="subjectForm" onsubmit="saveSubject(event)">
+                <div class="form-group">
+                    <label for="subjectName">Subject Name</label>
+                    <input type="text" id="subjectName" class="form-input" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="subjectCredits">Credits</label>
+                        <input type="number" id="subjectCredits" min="0.5" step="0.5" value="3" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="subjectGrade">Grade</label>
+                        <select id="subjectGrade" class="form-input" required>
+                            <option value="">Select Grade</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeSubjectModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Subject</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Custom Grading System -->
+    <div id="gradingModal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>Custom Grading System</h2>
+                <button class="modal-close" onclick="closeGradingModal()">&times;</button>
+            </div>
+            <div class="grading-system-editor" id="gradingSystemEditor">
+                <!-- Grading system inputs added here -->
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeGradingModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveGradingSystem()">Save System</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Import JSON -->
+    <div id="importModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Import Data</h2>
+                <button class="modal-close" onclick="closeImportModal()">&times;</button>
+            </div>
+            <form id="importForm" onsubmit="importData(event)">
+                <div class="form-group">
+                    <label for="importFile">Choose JSON File</label>
+                    <input type="file" id="importFile" accept=".json" class="form-input" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Import</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Hidden input for import -->
+    <input type="file" id="hiddenImportInput" accept=".json" style="display: none;">
+
+    <!-- Pass grading system from Flask -->
+    <script>
+        window.GRADING_SYSTEM_JSON = {{ grading_system|safe }};
+    </script>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/storage.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/chart.js') }}"></script>
+</body>
+</html>

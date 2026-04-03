@@ -1,0 +1,90 @@
+{
+  "exported_at": "2024-01-15T10:30:00.000Z",
+  "grading_system": {
+    "O": 10,
+    "A+": 9,
+    "A": 8,
+    "B+": 7,
+    "B": 6,
+    "C": 5,
+    "D": 4,
+    "F": 0
+  },
+  "semesters": [
+    {
+      "id": 1000001,
+      "subjects": [
+        {
+          "name": "Data Structures",
+          "credits": 4,
+          "grade": "A+"
+        },
+        {
+          "name": "Database Management Systems",
+          "credits": 3,
+          "grade": "A"
+        },
+        {
+          "name": "Web Development",
+          "credits": 3,
+          "grade": "A+"
+        },
+        {
+          "name": "Mathematics II",
+          "credits": 4,
+          "grade": "B+"
+        }
+      ]
+    },
+    {
+      "id": 1000002,
+      "subjects": [
+        {
+          "name": "Operating Systems",
+          "credits": 4,
+          "grade": "A"
+        },
+        {
+          "name": "Computer Networks",
+          "credits": 3,
+          "grade": "A+"
+        },
+        {
+          "name": "Software Engineering",
+          "credits": 3,
+          "grade": "B+"
+        },
+        {
+          "name": "Discrete Mathematics",
+          "credits": 4,
+          "grade": "A"
+        }
+      ]
+    },
+    {
+      "id": 1000003,
+      "subjects": [
+        {
+          "name": "Machine Learning",
+          "credits": 4,
+          "grade": "B+"
+        },
+        {
+          "name": "Cloud Computing",
+          "credits": 3,
+          "grade": "A"
+        },
+        {
+          "name": "Artificial Intelligence",
+          "credits": 3,
+          "grade": "B+"
+        },
+        {
+          "name": "Advanced Algorithms",
+          "credits": 4,
+          "grade": "A"
+        }
+      ]
+    }
+  ]
+}
