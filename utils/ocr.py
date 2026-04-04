@@ -78,13 +78,16 @@ class TextExtractor:
                         continue
             
             if not all_text:
-                return None, "No text found in PDF"
+                return None, "No text found in PDF. The PDF may contain only images."
             
             extracted_text = "\n\n".join(all_text)
             return extracted_text, None
             
         except Exception as e:
-            return None, f"Error extracting from PDF: {str(e)}"
+            error_str = str(e)
+            if 'permission' in error_str.lower():
+                return None, "Cannot read PDF - it may be password protected or corrupted."
+            return None, f"Error: {error_str[:80]}"
     
     def preprocess_image(self, image_path: str) -> tuple:
         """
@@ -161,7 +164,12 @@ class TextExtractor:
             
             return text, None
             
+        except pytesseract.TesseractNotFoundError:
+            return None, "❌ Tesseract-OCR is not installed. See README.md for installation instructions."
         except Exception as e:
+            error_msg = str(e).lower()
+            if 'tesseract' in error_msg or 'path' in error_msg:
+                return None, "❌ Tesseract-OCR not found. Install from: https://github.com/UB-Mannheim/tesseract/wiki"
             return None, f"Error extracting from image: {str(e)}"
     
     def extract_text(self, filepath: str) -> tuple:

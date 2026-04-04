@@ -39,6 +39,14 @@ A modern, interactive web application for calculating and analyzing your CGPA (C
 - **Data Reset**: Complete data wipe option
 - **Custom Grading Systems**: Define your own grading scales
 
+### OCR Marksheet Upload 📄 (NEW!)
+- **Auto-Extract from Files**: Upload PDF or image of marksheet
+- **Intelligent Parsing**: Automatically extract subjects, credits, and grades
+- **Confidence Scoring**: See confidence % for each extracted field
+- **Manual Review**: Edit and correct any extraction errors before importing
+- **Smart Import**: Automatically creates new semester with extracted subjects
+- **Supported Formats**: PDF, JPEG, PNG, BMP, TIFF (max 10MB)
+
 ## Tech Stack
 
 ### Backend
@@ -85,12 +93,37 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 
-### Step 3: Install Dependencies
+### Step 3: Install Python Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### Step 4: Run the Application
+### Step 4: Setup Tesseract-OCR (For Marksheet Upload Feature)
+Tesseract-OCR is required for automatic marksheet image extraction. It's a separate system software, not a Python package.
+
+#### Windows
+1. Download the installer from: https://github.com/UB-Mannheim/tesseract/wiki/Downloads
+2. Run the installer (e.g., `tesseract-ocr-w64-setup-v5.x.exe`)
+3. During installation, select full OCR language data (or just English for basic use)
+4. Note the installation path (default: `C:\Program Files\Tesseract-OCR`)
+
+After installation, verify it works:
+```powershell
+tesseract --version
+```
+
+#### macOS
+```bash
+brew install tesseract
+```
+
+#### Linux
+```bash
+sudo apt-get install tesseract-ocr  # Debian/Ubuntu
+sudo yum install tesseract          # CentOS/RHEL
+```
+
+### Step 5: Run the Application
 ```bash
 python app.py
 ```
@@ -183,6 +216,30 @@ SmartCgpaCalculator/
 3. Choose a previously exported JSON file
 4. Confirm the import
 
+### Using Upload Marksheet (OCR Feature)
+1. Click the **"Upload Marksheet"** tab
+2. **Upload a file**:
+   - Drag and drop a marksheet image/PDF, OR
+   - Click the upload area to browse and select a file
+3. **Wait for processing**:
+   - System extracts text using OCR
+   - Subjects, credits, and grades are parsed automatically
+4. **Review extracted data**:
+   - Check the preview table for accuracy
+   - Yellow-highlighted rows have low confidence (needs review)
+   - Columns are editable - fix any OCR errors directly
+5. **Import to calculator**:
+   - Click "Import to Semesters"
+   - A new semester is automatically created with extracted subjects
+   - CGPA is recalculated automatically
+6. **View raw text** (optional):
+   - Click "View Raw Extracted Text" to see OCR output for debugging
+
+**Note**: For image-based marksheets, make sure:
+- Image is clear and well-lit
+- Text is horizontal (not rotated)
+- Resolution is at least 300px wide (better quality = better OCR)
+
 ## API Endpoints
 
 ### `POST /api/calculate`
@@ -265,6 +322,66 @@ Update grading system
 }
 ```
 
+### `POST /api/upload` (OCR)
+Upload and extract marksheet data
+
+**Request:** Multipart form data with file
+- `file`: PDF or image file (JPEG, PNG, BMP, TIFF)
+- Max size: 10MB
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "subjects": [
+            {
+                "name": "Mathematics",
+                "credits": 4.0,
+                "grade": "A+",
+                "confidence": 0.95
+            },
+            {
+                "name": "Physics",
+                "credits": 3.0,
+                "grade": "A",
+                "confidence": 0.87
+            }
+        ],
+        "low_confidence": 1,
+        "errors": [],
+        "has_raw_text": true
+    }
+}
+```
+
+**Errors:**
+- `400`: Unsupported file type, file too large, or extraction failed
+- `500`: Server error
+
+### `POST /api/validate-extracted-subjects`
+Validate and normalize extracted subject data
+
+**Request:**
+```json
+{
+    "subjects": [
+        {"name": "Math", "credits": 4, "grade": "A+"},
+        {"name": "Physics", "credits": 3, "grade": "A"}
+    ]
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "validated_subjects": [...],
+    "error_count": 0,
+    "errors": []
+}
+```
+
 ## Features in Detail
 
 ### Auto-Save & Persistence
@@ -341,6 +458,41 @@ pip install -r requirements.txt
 - Export data before resetting
 - Check on localStorage quota
 - Try importing previously saved data
+
+### OCR/Marksheet Upload Issues
+
+#### "Tesseract-OCR is not installed"
+**Solution:**
+- Install Tesseract-OCR from https://github.com/UB-Mannheim/tesseract/wiki
+- Verify installation: `tesseract --version`
+- On Windows, add to PATH if needed:
+  - Go to Environment Variables
+  - Add `C:\Program Files\Tesseract-OCR` to PATH
+  - Restart Flask app
+
+#### "Failed to fetch" when uploading PDF
+**Possible causes:**
+- Flask backend crashed (check terminal)
+- File upload directory doesn't exist
+- Check Flask logs for detailed errors
+- Try with different PDF (some PDFs are image-only)
+
+#### "No text found in PDF"
+**Causes:** PDF contains only images, not text
+**Solutions:**
+- Upload an image of the marksheet instead
+- Use a different PDF with text-based content
+- Try pre-scanning the document to extract text first
+
+#### Low confidence scores on image
+**Reasons:**
+- Image quality is poor (blurry, low resolution)
+- Text is small or handwritten
+- Image is rotated or at an angle
+**Solutions:**
+- Upload a clearer, higher-resolution image (300px+ width)
+- Ensure image is straight and well-lit
+- Manually correct extracted values in preview
 
 ## Performance Considerations
 

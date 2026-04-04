@@ -861,14 +861,27 @@ function uploadFile(file) {
             extractedSubjects = result.data.subjects;
             displayExtractedData(result.data);
         } else {
-            showToast(result.error || 'Failed to process file', 'error');
+            // Enhanced error handling for Tesseract
+            let errorMsg = result.error || 'Failed to process file';
+            
+            if (errorMsg.includes('Tesseract')) {
+                errorMsg = '❌ Tesseract-OCR not installed. Visit: https://github.com/UB-Mannheim/tesseract/wiki\n\nFor Windows: Download and run the installer. See README.md for detailed setup.';
+            }
+            
+            showToast(errorMsg, 'error');
             resetUpload();
         }
     })
     .catch(error => {
         console.error('Upload error:', error);
         document.getElementById('uploadLoading').style.display = 'none';
-        showToast('Error uploading file: ' + error.message, 'error');
+        
+        let errorMsg = 'Error uploading file: ' + error.message;
+        if (error.message.includes('Failed to fetch')) {
+            errorMsg = '❌ Cannot connect to server. Make sure Flask app is running on http://localhost:5000';
+        }
+        
+        showToast(errorMsg, 'error');
         resetUpload();
     });
 }
