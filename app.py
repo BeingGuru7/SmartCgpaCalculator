@@ -3,9 +3,23 @@ from flask_cors import CORS
 from typing import Dict, List, Tuple
 import json
 from datetime import datetime
+import os
+from werkzeug.utils import secure_filename
+from utils.ocr import get_extractor
+from utils.parser import get_parser
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+
+# File upload configuration
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'png', 'bmp', 'tiff'}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+# Create uploads directory if it doesn't exist
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 
 # Default grade to point mapping (can be customized)
 DEFAULT_GRADING_SYSTEM = {
@@ -18,6 +32,12 @@ DEFAULT_GRADING_SYSTEM = {
     "D": 4,
     "F": 0
 }
+
+
+# File upload helper
+def allowed_file(filename):
+    """Check if file extension is allowed"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 class CGPACalculator:
@@ -373,6 +393,168 @@ def export_data():
         return jsonify({
             'success': True,
             'data': export_data
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
+@app.route('/api/upload', methods=['POST'])
+def upload_file():
+    """
+    Upload and extract data from marksheet document
+    
+    Expects multipart form data with 'file' field
+    """
+    try:
+        # Check if file was uploaded
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Validate file
+        if not allowed_file(file.filename):
+            return jsonify({
+                'error': f'Unsupported file type. Allowed: {", ".join(ALLOWED_EXTENSIONS)}'
+            }), 400
+        
+        # Save file
+        try:
+            filename = secure_filename(file.filename)
+            # Add timestamp to avoid conflicts
+            from time import time
+            filename = f"{int(time())}_{filename}"
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+        except Exception as e:
+            return jsonify({'error': f'Error saving file: {str(e)}'}), 500
+        
+        # Extract text
+        extractor = get_extractor()
+        extracted_text, extract_error = extractor.extract_text(filepath)
+        
+        if extract_error:
+            # Clean up file
+            try:
+                os.remove(filepath)
+            except:
+                pass
+            return jsonify({'error': extract_error}), 400
+        
+        # Parse data
+        parser = get_parser()
+        parsed_data = parser.parse_marksheet(extracted_text)
+        
+        # Clean up file
+        try:
+            os.remove(filepath)
+        except:
+            pass
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'subjects': parsed_data['subjects'],
+                'total_found': parsed_data['total_found'],
+                'low_confidence': parsed_data['low_confidence'],
+                'errors': parsed_data['errors'],
+                'has_raw_text': True
+            }
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
+
+
+@app.route('/api/extract-text', methods=['POST'])
+def extract_text():
+    """
+    Get raw extracted text from a previous upload
+    
+    Used for debugging/manual review
+    """
+    try:
+        data = request.get_json()
+        raw_text = data.get('raw_text', '')
+        
+        if not raw_text:
+            return jsonify({'error': 'No raw text provided'}), 400
+        
+        # Just return the raw text for display
+        return jsonify({
+            'success': True,
+            'raw_text': raw_text
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/validate-extracted-subjects', methods=['POST'])
+def validate_extracted_subjects():
+    """
+    Validate and potentially correct extracted subject data
+    
+    Expects JSON:
+    {
+        "subjects": [
+            {"name": "Math", "credits": 4, "grade": "A+"},
+            ...
+        ]
+    }
+    """
+    try:
+        data = request.get_json()
+        subjects = data.get('subjects', [])
+        
+        if not subjects:
+            return jsonify({'error': 'No subjects provided'}), 400
+        
+        validated = []
+        errors = []
+        
+        for idx, subject in enumerate(subjects):
+            name = subject.get('name', '').strip()
+            credits_val = subject.get('credits')
+            grade = subject.get('grade', '').strip()
+            
+            # Validate name
+            if not name:
+                errors.append(f"Subject {idx + 1}: Name is empty")
+                continue
+            
+            # Validate credits
+            try:
+                credits = float(credits_val)
+                if credits <= 0:
+                    errors.append(f"Subject {idx + 1}: Credits must be positive")
+                    continue
+            except (ValueError, TypeError):
+                errors.append(f"Subject {idx + 1}: Invalid credits value")
+                continue
+            
+            # Validate grade
+            if grade not in calculator.grading_system:
+                errors.append(f"Subject {idx + 1}: Grade '{grade}' not recognized")
+                continue
+            
+            validated.append({
+                'name': name,
+                'credits': credits,
+                'grade': grade
+            })
+        
+        return jsonify({
+            'success': len(errors) == 0 or len(validated) > 0,
+            'validated_subjects': validated,
+            'errors': errors,
+            'valid_count': len(validated),
+            'error_count': len(errors)
         })
     
     except Exception as e:

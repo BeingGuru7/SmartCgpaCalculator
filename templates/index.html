@@ -76,6 +76,9 @@
                     <button class="tab-btn active" data-tab="semesters">
                         <i class="fas fa-list"></i> Semesters
                     </button>
+                    <button class="tab-btn" data-tab="upload">
+                        <i class="fas fa-upload"></i> Upload Marksheet
+                    </button>
                     <button class="tab-btn" data-tab="analysis">
                         <i class="fas fa-chart-bar"></i> Analysis
                     </button>
@@ -93,6 +96,76 @@
                 <button class="btn btn-primary btn-large" id="addSemesterBtn">
                     <i class="fas fa-plus"></i> Add New Semester
                 </button>
+            </section>
+
+            <section class="tab-content" id="upload-tab">
+                <div class="upload-container">
+                    <div class="upload-section">
+                        <h3>Upload Marksheet</h3>
+                        <p class="upload-description">Upload your marksheet (PDF or image) and we'll extract the data automatically.</p>
+                        
+                        <div class="upload-area" id="uploadArea" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <h4>Drag and drop your file here</h4>
+                            <p>or click to browse</p>
+                            <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.bmp,.tiff" style="display: none;" onchange="handleFileSelect(event)">
+                        </div>
+                        
+                        <div class="upload-hint">
+                            <p><i class="fas fa-info-circle"></i> Supported formats: PDF, JPG, PNG, BMP, TIFF</p>
+                            <p><i class="fas fa-info-circle"></i> Maximum file size: 10MB</p>
+                        </div>
+                    </div>
+
+                    <!-- Loading state -->
+                    <div class="upload-loading" id="uploadLoading" style="display: none;">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Processing your document...</p>
+                    </div>
+
+                    <!-- Preview section -->
+                    <div class="upload-preview" id="uploadPreview" style="display: none;">
+                        <div class="preview-header">
+                            <h3>Extracted Data</h3>
+                            <button class="btn btn-secondary" id="resetUploadBtn" onclick="resetUpload()">
+                                <i class="fas fa-redo"></i> Upload Another
+                            </button>
+                        </div>
+
+                        <!-- Status message -->
+                        <div class="preview-status" id="previewStatus"></div>
+
+                        <!-- Extracted subjects table -->
+                        <div class="preview-table-container">
+                            <table class="preview-table" id="previewTable">
+                                <thead>
+                                    <tr>
+                                        <th>Subject Name</th>
+                                        <th>Credits</th>
+                                        <th>Grade</th>
+                                        <th>Confidence</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="previewTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Raw text section -->
+                        <details class="raw-text-section">
+                            <summary>View Raw Extracted Text</summary>
+                            <pre id="rawText"></pre>
+                        </details>
+
+                        <!-- Actions -->
+                        <div class="preview-actions">
+                            <button class="btn btn-primary btn-large" id="importExtractedBtn" onclick="importExtractedData()">
+                                <i class="fas fa-check"></i> Import to Semesters
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <section class="tab-content" id="analysis-tab">

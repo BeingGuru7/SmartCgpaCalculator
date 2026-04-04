@@ -98,6 +98,32 @@ function setupEventListeners() {
         document.getElementById('targetCgpaInput').value = e.target.value;
     });
 
+    // Upload file handling
+    const uploadArea = document.getElementById('uploadArea');
+    if (uploadArea) {
+        uploadArea.addEventListener('click', () => {
+            document.getElementById('fileInput').click();
+        });
+        uploadArea.addEventListener('dragover', handleDragOver);
+        uploadArea.addEventListener('dragleave', handleDragLeave);
+        uploadArea.addEventListener('drop', handleDrop);
+    }
+
+    const fileInput = document.getElementById('fileInput');
+    if (fileInput) {
+        fileInput.addEventListener('change', handleFileSelect);
+    }
+
+    const importBtn = document.getElementById('importExtractedBtn');
+    if (importBtn) {
+        importBtn.addEventListener('click', importExtractedData);
+    }
+
+    const resetBtn = document.getElementById('resetUploadBtn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetUpload);
+    }
+
     // Import/Export
     document.getElementById('hiddenImportInput').addEventListener('change', handleFileImport);
 }
@@ -765,7 +791,239 @@ function resetAllData() {
         }
     }
 }
+// ===== File Upload & OCR =====
 
+let extractedSubjects = [];
+
+function handleDragOver(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    document.getElementById('uploadArea').classList.add('dragover');
+}
+
+function handleDragLeave(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    document.getElementById('uploadArea').classList.remove('dragover');
+}
+
+function handleDrop(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    document.getElementById('uploadArea').classList.remove('dragover');
+    
+    const files = event.dataTransfer.files;
+    if (files.length > 0) {
+        uploadFile(files[0]);
+    }
+}
+
+function handleFileSelect(event) {
+    const files = event.target.files;
+    if (files.length > 0) {
+        uploadFile(files[0]);
+    }
+}
+
+function uploadFile(file) {
+    // Validate file size
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+        showToast('File is too large. Maximum size: 10MB', 'error');
+        return;
+    }
+    
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/bmp', 'image/tiff'];
+    if (!allowedTypes.includes(file.type) && !file.name.endsWith('.pdf')) {
+        showToast('Unsupported file type. Please upload PDF or image', 'error');
+        return;
+    }
+    
+    // Show loading state
+    document.getElementById('uploadArea').style.display = 'none';
+    document.getElementById('uploadLoading').style.display = 'block';
+    
+    // Create form data
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    // Upload file
+    fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(result => {
+        document.getElementById('uploadLoading').style.display = 'none';
+        
+        if (result.success) {
+            extractedSubjects = result.data.subjects;
+            displayExtractedData(result.data);
+        } else {
+            showToast(result.error || 'Failed to process file', 'error');
+            resetUpload();
+        }
+    })
+    .catch(error => {
+        console.error('Upload error:', error);
+        document.getElementById('uploadLoading').style.display = 'none';
+        showToast('Error uploading file: ' + error.message, 'error');
+        resetUpload();
+    });
+}
+
+function displayExtractedData(data) {
+    const preview = document.getElementById('uploadPreview');
+    const tableBody = document.getElementById('previewTableBody');
+    const statusDiv = document.getElementById('previewStatus');
+    
+    // Show preview
+    preview.style.display = 'block';
+    
+    // Display status message
+    if (data.low_confidence > 0) {
+        statusDiv.className = 'preview-status warning show';
+        statusDiv.innerHTML = `
+            <i class="fas fa-exclamation-triangle"></i>
+            ${data.low_confidence} subject(s) have low confidence. Please review and correct them.
+        `;
+    } else if (data.errors.length > 0) {
+        statusDiv.className = 'preview-status info show';
+        statusDiv.innerHTML = `
+            <i class="fas fa-info-circle"></i>
+            ${data.errors.join('; ')}
+        `;
+    } else {
+        statusDiv.className = 'preview-status show';
+        statusDiv.style.display = 'none';
+    }
+    
+    // Display extracted subjects
+    tableBody.innerHTML = '';
+    
+    if (data.subjects.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="5" class="empty-state">No subjects could be extracted</td></tr>';
+        return;
+    }
+    
+    data.subjects.forEach((subject, idx) => {
+        const row = document.createElement('tr');
+        const confidenceClass = subject.confidence < 0.7 ? 'confidence-low' : '';
+        const confidencePercent = Math.round(subject.confidence * 100);
+        
+        row.innerHTML = `
+            <td>
+                <input type="text" value="${subject.name}" data-idx="${idx}" data-field="name" class="subject-edit">
+            </td>
+            <td>
+                <input type="number" value="${subject.credits}" min="0.5" step="0.5" data-idx="${idx}" data-field="credits" class="subject-edit">
+            </td>
+            <td>
+                <select data-idx="${idx}" data-field="grade" class="subject-edit">
+                    <option value="">Select Grade</option>
+                    ${Object.keys(APP_STATE.gradingSystem).map(g => 
+                        `<option value="${g}" ${g === subject.grade ? 'selected' : ''}>${g}</option>`
+                    ).join('')}
+                </select>
+            </td>
+            <td class="${confidenceClass}">
+                ${confidencePercent}%
+            </td>
+            <td>
+                <button class="btn btn-secondary btn-small" onclick="removeExtractedRow(${idx})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        tableBody.appendChild(row);
+    });
+    
+    // Show raw text if available
+    if (data.has_raw_text) {
+        // Raw text will be set separately
+    }
+}
+
+function removeExtractedRow(idx) {
+    extractedSubjects.splice(idx, 1);
+    // Refresh table
+    displayExtractedData({
+        subjects: extractedSubjects,
+        low_confidence: extractedSubjects.filter(s => s.confidence < 0.7).length,
+        errors: [],
+        has_raw_text: true
+    });
+}
+
+function resetUpload() {
+    document.getElementById('fileInput').value = '';
+    document.getElementById('uploadArea').style.display = 'block';
+    document.getElementById('uploadLoading').style.display = 'none';
+    document.getElementById('uploadPreview').style.display = 'none';
+    extractedSubjects = [];
+}
+
+function importExtractedData() {
+    // Get edited values from table
+    const table = document.getElementById('previewTable');
+    const rows = table.querySelectorAll('tbody tr');
+    
+    const subjects = [];
+    rows.forEach(row => {
+        const nameInput = row.querySelector('input[data-field="name"]');
+        const creditsInput = row.querySelector('input[data-field="credits"]');
+        const gradeSelect = row.querySelector('select[data-field="grade"]');
+        
+        if (nameInput && creditsInput && gradeSelect) {
+            subjects.push({
+                name: nameInput.value.trim(),
+                credits: parseFloat(creditsInput.value),
+                grade: gradeSelect.value
+            });
+        }
+    });
+    
+    if (subjects.length === 0) {
+        showToast('No valid subjects to import', 'error');
+        return;
+    }
+    
+    // Validate subjects
+    fetch('/api/validate-extracted-subjects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subjects })
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (!result.success && result.error_count > 0) {
+            showToast('Some subjects have errors. Please correct them.', 'error');
+            result.errors.forEach(err => console.warn(err));
+            return;
+        }
+        
+        // Add as new semester
+        if (result.validated_subjects.length > 0) {
+            const newSemester = {
+                id: Date.now(),
+                subjects: result.validated_subjects
+            };
+            APP_STATE.semesters.push(newSemester);
+            saveDataToStorage();
+            renderSemesters();
+            calculateCGPA();
+            
+            showToast(`Successfully imported ${result.validated_subjects.length} subject(s)`, 'success');
+            resetUpload();
+            switchTab('semesters');
+        }
+    })
+    .catch(error => {
+        console.error('Validation error:', error);
+        showToast('Error validating subjects', 'error');
+    });
+}
 // ===== Toast Notifications =====
 function showToast(message, type = 'info') {
     const container = document.getElementById('toastContainer');
