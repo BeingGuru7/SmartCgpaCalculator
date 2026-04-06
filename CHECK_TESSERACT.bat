@@ -22,8 +22,11 @@ if %errorlevel% equ 0 (
     echo Checking common installation locations...
     echo.
     
-    if exist "C:\Program Files\Tesseract-OCR\tesseract.exe" (
-        echo [FOUND] C:\Program Files\Tesseract-OCR\tesseract.exe
+    set TESSERACT_PATH64=C:\Program Files\Tesseract-OCR\tesseract.exe
+    set TESSERACT_PATH32=C:\Program Files ^(x86^)\Tesseract-OCR\tesseract.exe
+    
+    if exist "%TESSERACT_PATH64%" (
+        echo [FOUND] %TESSERACT_PATH64%
         echo.
         echo Solution: Add to PATH
         echo 1. Press Win + X
@@ -34,24 +37,20 @@ if %errorlevel% equ 0 (
         echo 6. Add: C:\Program Files\Tesseract-OCR
         echo 7. Restart Flask app
         echo.
-    )
-    
-    if exist "C:\Program Files (x86)\Tesseract-OCR\tesseract.exe" (
-        echo [FOUND] C:\Program Files (x86)\Tesseract-OCR\tesseract.exe
-        echo.
-        echo Solution: Add to PATH
-        echo 1. Press Win + X
-        echo 2. Click "System"
-        echo 3. Click "Advanced system settings"
-        echo 4. Click "Environment Variables"
-        echo 5. Edit "Path" variable
-        echo 6. Add: C:\Program Files (x86)\Tesseract-OCR
-        echo 7. Restart Flask app
-        echo.
-    )
-    
-    if not exist "C:\Program Files\Tesseract-OCR\tesseract.exe" (
-        if not exist "C:\Program Files (x86)\Tesseract-OCR\tesseract.exe" (
+    ) else (
+        if exist "%TESSERACT_PATH32%" (
+            echo [FOUND] %TESSERACT_PATH32%
+            echo.
+            echo Solution: Add to PATH
+            echo 1. Press Win + X
+            echo 2. Click "System"
+            echo 3. Click "Advanced system settings"
+            echo 4. Click "Environment Variables"
+            echo 5. Edit "Path" variable
+            echo 6. Add: C:\Program Files ^(x86^)\Tesseract-OCR
+            echo 7. Restart Flask app
+            echo.
+        ) else (
             echo [NOT FOUND] Tesseract is not installed
             echo.
             echo To install Tesseract:

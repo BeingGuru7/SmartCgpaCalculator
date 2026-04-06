@@ -844,46 +844,152 @@ function uploadFile(file) {
     document.getElementById('uploadArea').style.display = 'none';
     document.getElementById('uploadLoading').style.display = 'block';
     
-    // Create form data
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    // Upload file
-    fetch('/api/upload', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(result => {
+    // Check if Tesseract is loaded
+    if (typeof Tesseract === 'undefined') {
+        showToast('OCR library is loading. Please wait a moment and try again.', 'error');
         document.getElementById('uploadLoading').style.display = 'none';
-        
-        if (result.success) {
-            extractedSubjects = result.data.subjects;
-            displayExtractedData(result.data);
-        } else {
-            // Enhanced error handling for Tesseract
-            let errorMsg = result.error || 'Failed to process file';
+        document.getElementById('uploadArea').style.display = 'block';
+        return;
+    }
+    
+    // Create file reader to get image data
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+        try {
+            const imageData = event.target.result;
             
-            if (errorMsg.includes('Tesseract')) {
-                errorMsg = '❌ Tesseract-OCR not installed. Visit: https://github.com/UB-Mannheim/tesseract/wiki\n\nFor Windows: Download and run the installer. See README.md for detailed setup.';
+            // Extract text using Tesseract.js
+            const { data: { text } } = await Tesseract.recognize(imageData, 'eng');
+            
+            if (!text || text.trim() === '') {
+                showToast('No text could be extracted from the image. Try a clearer image.', 'error');
+                document.getElementById('uploadLoading').style.display = 'none';
+                document.getElementById('uploadArea').style.display = 'block';
+                return;
             }
             
-            showToast(errorMsg, 'error');
-            resetUpload();
+            // Parse the extracted text
+            const parsedData = parseMarksheetText(text);
+            
+            // Display results
+            document.getElementById('uploadLoading').style.display = 'none';
+            displayExtractedData({
+                subjects: parsedData.subjects,
+                low_confidence: parsedData.low_confidence,
+                errors: parsedData.errors,
+                has_raw_text: true,
+                raw_text: text
+            });
+            
+        } catch (error) {
+            console.error('OCR error:', error);
+            document.getElementById('uploadLoading').style.display = 'none';
+            showToast('Error processing image: ' + error.message, 'error');
+            document.getElementById('uploadArea').style.display = 'block';
         }
-    })
-    .catch(error => {
-        console.error('Upload error:', error);
-        document.getElementById('uploadLoading').style.display = 'none';
+    };
+    
+    reader.readAsDataURL(file);
+}
+
+// Parse marksheet text and extract subjects
+function parseMarksheetText(text) {
+    const gradePatterns = {
+        'O': [/\bO\b/gi, 10],
+        'A+': [/\bA\+/gi, 9],
+        'A': [/\bA\b(?!\+)/gi, 8],
+        'B+': [/\bB\+/gi, 7],
+        'B': [/\bB\b(?!\+)/gi, 6],
+        'C': [/\bC\b/gi, 5],
+        'D': [/\bD\b/gi, 4],
+        'F': [/\bF\b/gi, 0]
+    };
+    
+    const subjects = [];
+    const errors = [];
+    let lowConfidence = 0;
+    
+    // Split text into lines
+    const lines = text.split('\n');
+    
+    // Process each line
+    lines.forEach((line, idx) => {
+        line = line.trim();
         
-        let errorMsg = 'Error uploading file: ' + error.message;
-        if (error.message.includes('Failed to fetch')) {
-            errorMsg = '❌ Cannot connect to server. Make sure Flask app is running on http://localhost:5000';
+        // Skip empty lines and headers
+        if (!line || line.length < 5 || /subject|grade|credit|code/i.test(line)) {
+            return;
         }
         
-        showToast(errorMsg, 'error');
-        resetUpload();
+        // Try to extract subject, credits, and grade from line
+        const subjectName = extractSubjectName(line);
+        const credits = extractCredits(line);
+        const grade = extractGrade(line, gradePatterns);
+        
+        if (subjectName && credits && grade) {
+            subjects.push({
+                name: subjectName,
+                credits: credits,
+                grade: grade,
+                confidence: 0.85  // Default confidence for browser OCR
+            });
+        }
     });
+    
+    return {
+        subjects: subjects,
+        low_confidence: lowConfidence,
+        errors: errors
+    };
+}
+
+// Extract subject name from text
+function extractSubjectName(line) {
+    // Remove grades and credits from line
+    let name = line.replace(/\b(O|A\+|A|B\+|B|C|D|F)\b/g, '');
+    name = name.replace(/\d+\.?\d*/g, '');
+    name = name.trim();
+    
+    // Remove trailing punctuation
+    name = name.replace(/[,;:.]$/, '').trim();
+    
+    // Only return if reasonable length (at least 3 characters)
+    if (name && name.length >= 3 && name.length < 100) {
+        return name;
+    }
+    return null;
+}
+
+// Extract credits from text
+function extractCredits(line) {
+    // Look for credit patterns like "3", "4", "3.5", "4.0"
+    const patterns = [
+        /credits?[\s:=]*(\d+\.?\d*)/i,
+        /cr[\s:=]*(\d+\.?\d*)/i,
+        /\b(\d+\.?\d*)\s*(?:credits?|cr)\b/i
+    ];
+    
+    for (let pattern of patterns) {
+        const match = line.match(pattern);
+        if (match) {
+            const credits = parseFloat(match[1]);
+            if (credits > 0 && credits <= 10) {
+                return credits;
+            }
+        }
+    }
+    
+    return null;
+}
+
+// Extract grade from text
+function extractGrade(line, gradePatterns) {
+    for (const [grade, [pattern, points]] of Object.entries(gradePatterns)) {
+        if (pattern.test(line)) {
+            return grade;
+        }
+    }
+    return null;
 }
 
 function displayExtractedData(data) {
@@ -953,8 +1059,11 @@ function displayExtractedData(data) {
     });
     
     // Show raw text if available
-    if (data.has_raw_text) {
-        // Raw text will be set separately
+    if (data.has_raw_text && data.raw_text) {
+        const rawTextElement = document.getElementById('rawText');
+        if (rawTextElement) {
+            rawTextElement.textContent = data.raw_text;
+        }
     }
 }
 
@@ -983,60 +1092,63 @@ function importExtractedData() {
     const rows = table.querySelectorAll('tbody tr');
     
     const subjects = [];
-    rows.forEach(row => {
+    const errors = [];
+    
+    rows.forEach((row, idx) => {
         const nameInput = row.querySelector('input[data-field="name"]');
         const creditsInput = row.querySelector('input[data-field="credits"]');
         const gradeSelect = row.querySelector('select[data-field="grade"]');
         
         if (nameInput && creditsInput && gradeSelect) {
-            subjects.push({
-                name: nameInput.value.trim(),
-                credits: parseFloat(creditsInput.value),
-                grade: gradeSelect.value
-            });
+            const name = nameInput.value.trim();
+            const credits = parseFloat(creditsInput.value);
+            const grade = gradeSelect.value;
+            
+            // Validate
+            if (!name || name.length === 0) {
+                errors.push(`Row ${idx + 1}: Subject name is required`);
+            }
+            if (isNaN(credits) || credits <= 0 || credits > 10) {
+                errors.push(`Row ${idx + 1}: Invalid credits (must be 0-10)`);
+            }
+            if (!grade || !APP_STATE.gradingSystem.hasOwnProperty(grade)) {
+                errors.push(`Row ${idx + 1}: Invalid grade`);
+            }
+            
+            // Add if valid
+            if (name && !isNaN(credits) && credits > 0 && grade) {
+                subjects.push({
+                    name: name,
+                    credits: credits,
+                    grade: grade
+                });
+            }
         }
     });
     
     if (subjects.length === 0) {
         showToast('No valid subjects to import', 'error');
+        if (errors.length > 0) {
+            console.warn('Validation errors:', errors);
+        }
         return;
     }
     
-    // Validate subjects
-    fetch('/api/validate-extracted-subjects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subjects })
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (!result.success && result.error_count > 0) {
-            showToast('Some subjects have errors. Please correct them.', 'error');
-            result.errors.forEach(err => console.warn(err));
-            return;
-        }
-        
-        // Add as new semester
-        if (result.validated_subjects.length > 0) {
-            const newSemester = {
-                id: Date.now(),
-                subjects: result.validated_subjects
-            };
-            APP_STATE.semesters.push(newSemester);
-            saveDataToStorage();
-            renderSemesters();
-            calculateCGPA();
-            
-            showToast(`Successfully imported ${result.validated_subjects.length} subject(s)`, 'success');
-            resetUpload();
-            switchTab('semesters');
-        }
-    })
-    .catch(error => {
-        console.error('Validation error:', error);
-        showToast('Error validating subjects', 'error');
-    });
+    // Add as new semester
+    const newSemester = {
+        id: Date.now(),
+        subjects: subjects
+    };
+    APP_STATE.semesters.push(newSemester);
+    saveDataToStorage();
+    renderSemesters();
+    calculateCGPA();
+    
+    showToast(`Successfully imported ${subjects.length} subject(s)`, 'success');
+    resetUpload();
+    switchTab('semesters');
 }
+
 // ===== Toast Notifications =====
 function showToast(message, type = 'info') {
     const container = document.getElementById('toastContainer');

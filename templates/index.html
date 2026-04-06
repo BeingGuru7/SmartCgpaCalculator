@@ -369,6 +369,9 @@
         window.GRADING_SYSTEM_JSON = {{ grading_system|safe }};
     </script>
 
+    <!-- Tesseract.js for browser-based OCR -->
+    <script async src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
     <script src="{{ url_for('static', filename='js/storage.js') }}"></script>
