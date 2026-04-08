@@ -1243,13 +1243,19 @@ function importExtractedData() {
                 
                 // Validate
                 if (!name || name.length === 0) {
-                    errors.push(`Row ${idx + 1}: Subject name is required`);\n                }\n                if (isNaN(credits) || credits <= 0 || credits > 10) {
-                    errors.push(`Row ${idx + 1}: Invalid credits (must be 0-10)`);\n                }\n                if (!grade || !APP_STATE.gradingSystem.hasOwnProperty(grade)) {
-                    errors.push(`Row ${idx + 1}: Invalid grade`);\n                }
+                    errors.push(`Row ${idx + 1}: Subject name is required`);
+                }
+                if (isNaN(credits) || credits <= 0 || credits > 10) {
+                    errors.push(`Row ${idx + 1}: Invalid credits (must be 0-10)`);
+                }
+                if (!grade || !APP_STATE.gradingSystem.hasOwnProperty(grade)) {
+                    errors.push(`Row ${idx + 1}: Invalid grade`);
+                }
                 
                 // Add if valid
                 if (name && !isNaN(credits) && credits > 0 && grade) {
-                    subjects.push({\n                        name: name,
+                    subjects.push({
+                        name: name,
                         credits: credits,
                         grade: grade
                     });
