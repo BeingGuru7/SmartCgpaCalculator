@@ -1105,9 +1105,16 @@ function extractGrade(line, gradePatterns) {
 }
 
 function displayExtractedData(data) {
+    console.log('=== DISPLAY EXTRACTED DATA ===');
+    console.log('Subjects received:', data.subjects.length);
+    console.log('Source:', data.has_raw_text ? 'Browser OCR' : 'Server');
+    
     const preview = document.getElementById('uploadPreview');
     const tableBody = document.getElementById('previewTableBody');
     const statusDiv = document.getElementById('previewStatus');
+    
+    // Clear previous data
+    tableBody.innerHTML = '';
     
     // Show preview
     preview.style.display = 'block';
@@ -1119,7 +1126,7 @@ function displayExtractedData(data) {
             <i class="fas fa-exclamation-triangle"></i>
             ${data.low_confidence} subject(s) have low confidence. Please review and correct them.
         `;
-    } else if (data.errors.length > 0) {
+    } else if (data.errors && data.errors.length > 0) {
         statusDiv.className = 'preview-status info show';
         statusDiv.innerHTML = `
             <i class="fas fa-info-circle"></i>
@@ -1131,8 +1138,6 @@ function displayExtractedData(data) {
     }
     
     // Display extracted subjects
-    tableBody.innerHTML = '';
-    
     if (data.subjects.length === 0) {
         tableBody.innerHTML = '<tr><td colspan="5" class="empty-state">No subjects could be extracted</td></tr>';
         return;
@@ -1177,6 +1182,8 @@ function displayExtractedData(data) {
             rawTextElement.textContent = data.raw_text;
         }
     }
+    
+    console.log('Display complete. Ready to import.');
 }
 
 function removeExtractedRow(idx) {
@@ -1199,20 +1206,27 @@ function resetUpload() {
 }
 
 function importExtractedData() {
+    console.log('=== IMPORT EXTRACTED DATA ===');
+    
     // Check if import button exists and is already disabled (prevent double-click)
     const importBtn = document.getElementById('importExtractedBtn');
     if (importBtn && importBtn.disabled) {
-        console.warn('Import already in progress');
+        console.warn('⚠️ Import already in progress - ignoring duplicate click');
         return;
     }
     
     // Disable button to prevent double submissions
-    if (importBtn) importBtn.disabled = true;
+    if (importBtn) {
+        importBtn.disabled = true;
+        console.log('Button disabled to prevent double-click');
+    }
     
     try {
         // Get edited values from table
         const table = document.getElementById('previewTable');
         const rows = table.querySelectorAll('tbody tr');
+        
+        console.log('Reading', rows.length, 'rows from preview table');
         
         const subjects = [];
         const errors = [];
@@ -1229,25 +1243,21 @@ function importExtractedData() {
                 
                 // Validate
                 if (!name || name.length === 0) {
-                    errors.push(`Row ${idx + 1}: Subject name is required`);
-                }
-                if (isNaN(credits) || credits <= 0 || credits > 10) {
-                    errors.push(`Row ${idx + 1}: Invalid credits (must be 0-10)`);
-                }
-                if (!grade || !APP_STATE.gradingSystem.hasOwnProperty(grade)) {
-                    errors.push(`Row ${idx + 1}: Invalid grade`);
-                }
+                    errors.push(`Row ${idx + 1}: Subject name is required`);\n                }\n                if (isNaN(credits) || credits <= 0 || credits > 10) {
+                    errors.push(`Row ${idx + 1}: Invalid credits (must be 0-10)`);\n                }\n                if (!grade || !APP_STATE.gradingSystem.hasOwnProperty(grade)) {
+                    errors.push(`Row ${idx + 1}: Invalid grade`);\n                }
                 
                 // Add if valid
                 if (name && !isNaN(credits) && credits > 0 && grade) {
-                    subjects.push({
-                        name: name,
+                    subjects.push({\n                        name: name,
                         credits: credits,
                         grade: grade
                     });
                 }
             }
         });
+        
+        console.log('Validation complete:', subjects.length, 'valid subjects,', errors.length, 'errors');
         
         if (subjects.length === 0) {
             showToast('No valid subjects to import', 'error');
@@ -1262,17 +1272,29 @@ function importExtractedData() {
             id: Date.now(),
             subjects: subjects
         };
+        console.log('Creating new semester with ID:', newSemester.id, 'and', subjects.length, 'subjects');
+        
         APP_STATE.semesters.push(newSemester);
+        console.log('Total semesters now:', APP_STATE.semesters.length);
+        
         saveDataToStorage();
         renderSemesters();
         calculateCGPA();
         
-        showToast(`Successfully imported ${subjects.length} subject(s)`, 'success');
+        showToast(`✅ Successfully imported ${subjects.length} subject(s) to a new semester`, 'success');
         resetUpload();
         switchTab('semesters');
+        
+        console.log('=== IMPORT COMPLETE ===');
+    } catch (error) {
+        console.error('❌ Error during import:', error);
+        showToast('Error importing data: ' + error.message, 'error');
     } finally {
         // Re-enable button
-        if (importBtn) importBtn.disabled = false;
+        if (importBtn) {
+            importBtn.disabled = false;
+            console.log('Button re-enabled');
+        }
     }
 }
 
