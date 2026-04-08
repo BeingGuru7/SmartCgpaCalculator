@@ -5,8 +5,13 @@ import json
 from datetime import datetime
 import os
 from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
 from utils.ocr import get_extractor
 from utils.parser import get_parser
+from utils.google_vision import get_google_vision_ocr
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -403,7 +408,7 @@ def export_data():
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     """
-    Upload and extract data from marksheet document
+    Upload and extract data from marksheet document using Google Vision API
     
     Expects multipart form data with 'file' field
     """
@@ -423,7 +428,7 @@ def upload_file():
                 'error': f'Unsupported file type. Allowed: {", ".join(ALLOWED_EXTENSIONS)}'
             }), 400
         
-        # Save file
+        # Save file temporarily
         try:
             filename = secure_filename(file.filename)
             # Add timestamp to avoid conflicts
@@ -434,27 +439,37 @@ def upload_file():
         except Exception as e:
             return jsonify({'error': f'Error saving file: {str(e)}'}), 500
         
-        # Extract text
-        extractor = get_extractor()
-        extracted_text, extract_error = extractor.extract_text(filepath)
+        # Try Google Vision API first if available
+        extracted_text = None
+        ocr = get_google_vision_ocr()
         
-        if extract_error:
-            # Clean up file
-            try:
-                os.remove(filepath)
-            except:
-                pass
-            return jsonify({'error': extract_error}), 400
-        
-        # Parse data
-        parser = get_parser()
-        parsed_data = parser.parse_marksheet(extracted_text)
+        if ocr and ocr.client:
+            extracted_text, extract_error = ocr.extract_text_from_image(filepath)
+            if extract_error:
+                print(f"Google Vision error: {extract_error}")
+                # Fall back to server OCR if available
+                extractor = get_extractor()
+                extracted_text, extract_error = extractor.extract_text(filepath)
+        else:
+            # Use fallback server-side OCR
+            extractor = get_extractor()
+            extracted_text, extract_error = extractor.extract_text(filepath)
         
         # Clean up file
         try:
             os.remove(filepath)
         except:
             pass
+        
+        if extract_error:
+            return jsonify({'error': extract_error}), 400
+        
+        if not extracted_text:
+            return jsonify({'error': 'Could not extract text from the document'}), 400
+        
+        # Parse data using existing parser
+        parser = get_parser()
+        parsed_data = parser.parse_marksheet(extracted_text)
         
         return jsonify({
             'success': True,
