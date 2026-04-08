@@ -78,7 +78,7 @@ class TextExtractor:
                         continue
             
             if not all_text:
-                return None, "No text found in PDF. The PDF may contain only images."
+                return None, "📸 This PDF appears to be a scanned image. Please upload as PNG/JPG instead for better results."
             
             extracted_text = "\n\n".join(all_text)
             return extracted_text, None
@@ -87,7 +87,7 @@ class TextExtractor:
             error_str = str(e)
             if 'permission' in error_str.lower():
                 return None, "Cannot read PDF - it may be password protected or corrupted."
-            return None, f"Error: {error_str[:80]}"
+            return None, f"PDF Error: {error_str[:80]}"
     
     def preprocess_image(self, image_path: str) -> tuple:
         """

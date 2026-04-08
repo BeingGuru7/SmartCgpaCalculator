@@ -934,9 +934,12 @@ function uploadFileToServer(file) {
     // Show loading state
     document.getElementById('uploadArea').style.display = 'none';
     document.getElementById('uploadLoading').style.display = 'block';
+    document.getElementById('uploadStatus').textContent = 'Processing PDF...';
     
     const formData = new FormData();
     formData.append('file', file);
+    
+    console.log('PDF upload started:', file.name);
     
     fetch('/api/upload', {
         method: 'POST',
@@ -944,19 +947,31 @@ function uploadFileToServer(file) {
     })
     .then(response => response.json())
     .then(data => {
+        console.log('PDF server response:', data);
         document.getElementById('uploadLoading').style.display = 'none';
         
         if (data.error) {
-            showToast(data.error, 'error');
+            console.error('PDF extraction error:', data.error);
+            showToast('📄 ' + data.error, 'error');
             document.getElementById('uploadArea').style.display = 'block';
-        } else {
+        } else if (data.success && data.data) {
+            // Extract from nested response
+            console.log('PDF: Found', data.data.subjects?.length || 0, 'subjects');
+            displayExtractedData(data.data);
+        } else if (data.subjects) {
+            // Direct response format
+            console.log('PDF: Found', data.subjects.length, 'subjects');
             displayExtractedData(data);
+        } else {
+            console.warn('PDF: Unexpected response format', data);
+            showToast('No subjects extracted from PDF', 'error');
+            document.getElementById('uploadArea').style.display = 'block';
         }
     })
     .catch(error => {
         console.error('Upload error:', error);
         document.getElementById('uploadLoading').style.display = 'none';
-        showToast('Error uploading file: ' + error.message, 'error');
+        showToast('Network error: ' + error.message, 'error');
         document.getElementById('uploadArea').style.display = 'block';
     });
 }
@@ -1184,66 +1199,81 @@ function resetUpload() {
 }
 
 function importExtractedData() {
-    // Get edited values from table
-    const table = document.getElementById('previewTable');
-    const rows = table.querySelectorAll('tbody tr');
-    
-    const subjects = [];
-    const errors = [];
-    
-    rows.forEach((row, idx) => {
-        const nameInput = row.querySelector('input[data-field="name"]');
-        const creditsInput = row.querySelector('input[data-field="credits"]');
-        const gradeSelect = row.querySelector('select[data-field="grade"]');
-        
-        if (nameInput && creditsInput && gradeSelect) {
-            const name = nameInput.value.trim();
-            const credits = parseFloat(creditsInput.value);
-            const grade = gradeSelect.value;
-            
-            // Validate
-            if (!name || name.length === 0) {
-                errors.push(`Row ${idx + 1}: Subject name is required`);
-            }
-            if (isNaN(credits) || credits <= 0 || credits > 10) {
-                errors.push(`Row ${idx + 1}: Invalid credits (must be 0-10)`);
-            }
-            if (!grade || !APP_STATE.gradingSystem.hasOwnProperty(grade)) {
-                errors.push(`Row ${idx + 1}: Invalid grade`);
-            }
-            
-            // Add if valid
-            if (name && !isNaN(credits) && credits > 0 && grade) {
-                subjects.push({
-                    name: name,
-                    credits: credits,
-                    grade: grade
-                });
-            }
-        }
-    });
-    
-    if (subjects.length === 0) {
-        showToast('No valid subjects to import', 'error');
-        if (errors.length > 0) {
-            console.warn('Validation errors:', errors);
-        }
+    // Check if import button exists and is already disabled (prevent double-click)
+    const importBtn = document.getElementById('importExtractedBtn');
+    if (importBtn && importBtn.disabled) {
+        console.warn('Import already in progress');
         return;
     }
     
-    // Add as new semester
-    const newSemester = {
-        id: Date.now(),
-        subjects: subjects
-    };
-    APP_STATE.semesters.push(newSemester);
-    saveDataToStorage();
-    renderSemesters();
-    calculateCGPA();
+    // Disable button to prevent double submissions
+    if (importBtn) importBtn.disabled = true;
     
-    showToast(`Successfully imported ${subjects.length} subject(s)`, 'success');
-    resetUpload();
-    switchTab('semesters');
+    try {
+        // Get edited values from table
+        const table = document.getElementById('previewTable');
+        const rows = table.querySelectorAll('tbody tr');
+        
+        const subjects = [];
+        const errors = [];
+        
+        rows.forEach((row, idx) => {
+            const nameInput = row.querySelector('input[data-field="name"]');
+            const creditsInput = row.querySelector('input[data-field="credits"]');
+            const gradeSelect = row.querySelector('select[data-field="grade"]');
+            
+            if (nameInput && creditsInput && gradeSelect) {
+                const name = nameInput.value.trim();
+                const credits = parseFloat(creditsInput.value);
+                const grade = gradeSelect.value;
+                
+                // Validate
+                if (!name || name.length === 0) {
+                    errors.push(`Row ${idx + 1}: Subject name is required`);
+                }
+                if (isNaN(credits) || credits <= 0 || credits > 10) {
+                    errors.push(`Row ${idx + 1}: Invalid credits (must be 0-10)`);
+                }
+                if (!grade || !APP_STATE.gradingSystem.hasOwnProperty(grade)) {
+                    errors.push(`Row ${idx + 1}: Invalid grade`);
+                }
+                
+                // Add if valid
+                if (name && !isNaN(credits) && credits > 0 && grade) {
+                    subjects.push({
+                        name: name,
+                        credits: credits,
+                        grade: grade
+                    });
+                }
+            }
+        });
+        
+        if (subjects.length === 0) {
+            showToast('No valid subjects to import', 'error');
+            if (errors.length > 0) {
+                console.warn('Validation errors:', errors);
+            }
+            return;
+        }
+        
+        // Add as new semester
+        const newSemester = {
+            id: Date.now(),
+            subjects: subjects
+        };
+        APP_STATE.semesters.push(newSemester);
+        saveDataToStorage();
+        renderSemesters();
+        calculateCGPA();
+        
+        showToast(`Successfully imported ${subjects.length} subject(s)`, 'success');
+        resetUpload();
+        switchTab('semesters');
+    } finally {
+        // Re-enable button
+        if (importBtn) importBtn.disabled = false;
+    }
 }
 
 // ===== Toast Notifications =====
