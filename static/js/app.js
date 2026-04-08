@@ -840,11 +840,22 @@ function uploadFile(file) {
         return;
     }
     
+    // PDF handling - send to server
+    if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+        uploadFileToServer(file);
+        return;
+    }
+    
+    // Image handling - use browser OCR
+    processImageFile(file);
+}
+
+function processImageFile(file) {
     // Show loading state
     document.getElementById('uploadArea').style.display = 'none';
     document.getElementById('uploadLoading').style.display = 'block';
     
-    // Check if Tesseract is loaded
+    // Wait for Tesseract to be ready
     if (typeof Tesseract === 'undefined') {
         showToast('OCR library is loading. Please wait a moment and try again.', 'error');
         document.getElementById('uploadLoading').style.display = 'none';
@@ -852,14 +863,28 @@ function uploadFile(file) {
         return;
     }
     
-    // Create file reader to get image data
     const reader = new FileReader();
     reader.onload = async (event) => {
         try {
             const imageData = event.target.result;
             
-            // Extract text using Tesseract.js
-            const { data: { text } } = await Tesseract.recognize(imageData, 'eng');
+            console.log('Starting Tesseract.js OCR...');
+            
+            // Use Tesseract.recognize with proper worker setup
+            const result = await Tesseract.recognize(imageData, 'eng', {
+                logger: m => {
+                    console.log('Tesseract progress:', m.progress);
+                    // Update progress if needed
+                    if (m.progress === 1) {
+                        document.getElementById('uploadStatus').textContent = 'Processing...';
+                    }
+                }
+            });
+            
+            const text = result.data.text;
+            
+            console.log('Extracted text length:', text.length);
+            console.log('First 200 chars:', text.substring(0, 200));
             
             if (!text || text.trim() === '') {
                 showToast('No text could be extracted from the image. Try a clearer image.', 'error');
@@ -870,6 +895,12 @@ function uploadFile(file) {
             
             // Parse the extracted text
             const parsedData = parseMarksheetText(text);
+            
+            console.log('Parsed subjects:', parsedData.subjects.length);
+            
+            if (parsedData.subjects.length === 0) {
+                showToast('Could not find subjects in the extracted text. The image quality may be poor.', 'warning');
+            }
             
             // Display results
             document.getElementById('uploadLoading').style.display = 'none';
@@ -889,7 +920,45 @@ function uploadFile(file) {
         }
     };
     
+    reader.onerror = (error) => {
+        console.error('File read error:', error);
+        showToast('Error reading file', 'error');
+        document.getElementById('uploadLoading').style.display = 'none';
+        document.getElementById('uploadArea').style.display = 'block';
+    };
+    
     reader.readAsDataURL(file);
+}
+
+function uploadFileToServer(file) {
+    // Show loading state
+    document.getElementById('uploadArea').style.display = 'none';
+    document.getElementById('uploadLoading').style.display = 'block';
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('uploadLoading').style.display = 'none';
+        
+        if (data.error) {
+            showToast(data.error, 'error');
+            document.getElementById('uploadArea').style.display = 'block';
+        } else {
+            displayExtractedData(data);
+        }
+    })
+    .catch(error => {
+        console.error('Upload error:', error);
+        document.getElementById('uploadLoading').style.display = 'none';
+        showToast('Error uploading file: ' + error.message, 'error');
+        document.getElementById('uploadArea').style.display = 'block';
+    });
 }
 
 // Parse marksheet text and extract subjects
@@ -917,7 +986,12 @@ function parseMarksheetText(text) {
         line = line.trim();
         
         // Skip empty lines and headers
-        if (!line || line.length < 5 || /subject|grade|credit|code/i.test(line)) {
+        if (!line || line.length < 3) {
+            return;
+        }
+        
+        // Skip header-like lines
+        if (/^(subject|course|code|grade|mark|credit|sno|sl|total|cgpa|semester|result|course code)/i.test(line)) {
             return;
         }
         
@@ -926,15 +1000,19 @@ function parseMarksheetText(text) {
         const credits = extractCredits(line);
         const grade = extractGrade(line, gradePatterns);
         
-        if (subjectName && credits && grade) {
+        // Accept if we have at least subject and grade
+        // Credits can be derived or defaulted
+        if (subjectName && grade) {
             subjects.push({
                 name: subjectName,
-                credits: credits,
+                credits: credits || 3,  // Default to 3 if not found
                 grade: grade,
-                confidence: 0.85  // Default confidence for browser OCR
+                confidence: credits ? 0.9 : 0.75  // Lower confidence if credits weren't found
             });
         }
     });
+    
+    console.log(`Parsed ${subjects.length} subjects:`, subjects);
     
     return {
         subjects: subjects,
@@ -945,15 +1023,23 @@ function parseMarksheetText(text) {
 
 // Extract subject name from text
 function extractSubjectName(line) {
-    // Remove grades and credits from line
+    // Remove grades and credits from line to isolate subject name
     let name = line.replace(/\b(O|A\+|A|B\+|B|C|D|F)\b/g, '');
-    name = name.replace(/\d+\.?\d*/g, '');
+    name = name.replace(/credits?|cr\b/gi, '');
+    name = name.replace(/\b\d+\.?\d*\b/g, ' ');  // Remove numbers but keep spaces
+    name = name.replace(/\s+/g, ' ');  // Normalize spaces
     name = name.trim();
     
     // Remove trailing punctuation
-    name = name.replace(/[,;:.]$/, '').trim();
+    name = name.replace(/[,;:.()[\]{}]+\s*$/g, '').trim();
+    name = name.replace(/^[,;:.()[\]{}]+\s*/g, '').trim();
     
-    // Only return if reasonable length (at least 3 characters)
+    // Clean up any remaining special chars but keep spaces
+    name = name.replace(/[^a-zA-Z0-9\s&\-]/g, '');
+    name = name.trim();
+    
+    // Only return if reasonable length
+    // At least 3 chars for subject names, but not too long
     if (name && name.length >= 3 && name.length < 100) {
         return name;
     }
@@ -966,7 +1052,8 @@ function extractCredits(line) {
     const patterns = [
         /credits?[\s:=]*(\d+\.?\d*)/i,
         /cr[\s:=]*(\d+\.?\d*)/i,
-        /\b(\d+\.?\d*)\s*(?:credits?|cr)\b/i
+        /\b(\d+\.?\d*)\s*(?:credits?|cr)\b/i,
+        /^.*?\s+(\d+\.?\d*)\s+[A-F]/  // Number followed by grade
     ];
     
     for (let pattern of patterns) {
@@ -976,6 +1063,16 @@ function extractCredits(line) {
             if (credits > 0 && credits <= 10) {
                 return credits;
             }
+        }
+    }
+    
+    // Try to find a standalone number that looks like credits (1-4 range)
+    const numberMatches = line.match(/\b([1-4])\b/g);
+    if (numberMatches && numberMatches.length > 0) {
+        // Return the last number that looks reasonable
+        const lastNum = parseFloat(numberMatches[numberMatches.length - 1]);
+        if (lastNum > 0 && lastNum <= 4) {
+            return lastNum;
         }
     }
     

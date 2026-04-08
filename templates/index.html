@@ -370,7 +370,15 @@
     </script>
 
     <!-- Tesseract.js for browser-based OCR -->
-    <script async src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script async src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
+    
+    <!-- Tesseract worker files -->
+    <script>
+        // Configure Tesseract.js to use CDN workers
+        if (typeof Tesseract !== 'undefined') {
+            Tesseract.setLogging(true);
+        }
+    </script>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
