@@ -3,10 +3,17 @@ Google Cloud Vision API integration for OCR
 """
 
 import os
-from google.cloud import vision
-from google.oauth2 import service_account
 import json
 import base64
+
+# Google Cloud Vision is optional - import gracefully handles missing package
+try:
+    from google.cloud import vision
+    from google.oauth2 import service_account
+    GOOGLE_VISION_AVAILABLE = True
+except ImportError:
+    GOOGLE_VISION_AVAILABLE = False
+    vision = None
 
 
 class GoogleVisionOCR:
@@ -22,6 +29,11 @@ class GoogleVisionOCR:
     
     def _initialize_client(self):
         """Initialize Google Vision API client"""
+        if not GOOGLE_VISION_AVAILABLE:
+            print("Warning: google-cloud-vision package not installed. Using browser OCR fallback.")
+            self.client = None
+            return
+            
         try:
             # Create a client using the API key
             self.client = vision.ImageAnnotatorClient(

@@ -8,7 +8,15 @@ from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from utils.ocr import get_extractor
 from utils.parser import get_parser
-from utils.google_vision import get_google_vision_ocr
+
+# Gracefully import Google Vision - it's optional
+try:
+    from utils.google_vision import get_google_vision_ocr
+    GOOGLE_VISION_AVAILABLE = True
+except ImportError:
+    GOOGLE_VISION_AVAILABLE = False
+    def get_google_vision_ocr():
+        return None
 
 # Load environment variables from .env file
 load_dotenv()
