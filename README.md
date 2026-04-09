@@ -1,4 +1,4 @@
-# Smart CGPA Calculator
+i said t# Smart CGPA Calculator
 
 A modern, interactive web application for calculating and analyzing your CGPA (Cumulative Grade Point Average). Built with Python Flask backend and vanilla JavaScript frontend with a clean, minimal UI.
 
