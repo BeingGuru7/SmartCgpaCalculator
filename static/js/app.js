@@ -114,14 +114,26 @@ function setupEventListeners() {
         fileInput.addEventListener('change', handleFileSelect);
     }
 
+    // Import extracted data button - ONLY attach listener ONCE
     const importBtn = document.getElementById('importExtractedBtn');
     if (importBtn) {
-        importBtn.addEventListener('click', importExtractedData);
+        // Clone and replace to remove all old listeners
+        const newImportBtn = importBtn.cloneNode(true);
+        importBtn.parentNode.replaceChild(newImportBtn, importBtn);
+        
+        // Attach fresh listener
+        newImportBtn.addEventListener('click', importExtractedData);
     }
 
+    // Reset upload button - ONLY attach listener ONCE
     const resetBtn = document.getElementById('resetUploadBtn');
     if (resetBtn) {
-        resetBtn.addEventListener('click', resetUpload);
+        // Clone and replace to remove all old listeners
+        const newResetBtn = resetBtn.cloneNode(true);
+        resetBtn.parentNode.replaceChild(newResetBtn, resetBtn);
+        
+        // Attach fresh listener
+        newResetBtn.addEventListener('click', resetUpload);
     }
 
     // Import/Export
