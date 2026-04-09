@@ -394,50 +394,134 @@ function createSubjectItem(semesterId, subject, index) {
 }
 
 // ===== CGPA Calculations =====
-function calculateSGPA(subjects) {
-    if (subjects.length === 0) return 0;
+/**
+ * Calculate weighted average GPA for a set of subjects
+ * Formula: (Sum of (credits × grade_point)) / (Total credits)
+ * @param {Array} subjects - Array of subject objects with name, credits, grade
+ * @returns {Number} GPA value (0-10), rounded to 2 decimal places
+ */
+function calculateGPA(subjects) {
+    if (!subjects || subjects.length === 0) return 0;
 
-    let totalPoints = 0;
+    let totalQualityPoints = 0;
     let totalCredits = 0;
+    let validSubjectCount = 0;
 
-    subjects.forEach(subject => {
-        const gradePoints = APP_STATE.gradingSystem[subject.grade] || 0;
-        const credits = parseFloat(subject.credits) || 0;
+    subjects.forEach((subject, idx) => {
+        const credits = parseFloat(subject.credits);
+        const grade = subject.grade;
+        const gradePoint = APP_STATE.gradingSystem[grade] || 0;
         
-        totalPoints += gradePoints * credits;
-        totalCredits += credits;
+        // Only process subjects with valid credits
+        if (!isNaN(credits) && credits > 0) {
+            const qualityPoints = credits * gradePoint;
+            totalQualityPoints += qualityPoints;
+            totalCredits += credits;
+            validSubjectCount++;
+            
+            console.log(`  Subject ${idx + 1}: "${subject.name}" | Credits: ${credits} | Grade: ${grade} | Grade Points: ${gradePoint} | Quality Points: ${qualityPoints}`);
+        } else {
+            console.warn(`  Subject ${idx + 1}: "${subject.name}" | SKIPPED - Invalid credits: ${subject.credits}`);
+        }
     });
 
-    return totalCredits === 0 ? 0 : totalPoints / totalCredits;
+    const gpa = totalCredits === 0 ? 0 : totalQualityPoints / totalCredits;
+    
+    console.log(`  Quality Points Total: ${totalQualityPoints.toFixed(2)}, Total Credits: ${totalCredits}, Valid Subjects: ${validSubjectCount}`);
+    console.log(`  GPA: ${gpa.toFixed(2)}`);
+    
+    return parseFloat(gpa.toFixed(2));
 }
 
+/**
+ * Calculate SGPA (Semester GPA) for a specific semester
+ * @param {Array} subjects - Array of subject objects in the semester
+ * @returns {Number} SGPA value
+ */
+function calculateSGPA(subjects) {
+    return calculateGPA(subjects);
+}
+
+/**
+ * Calculate total credits across subjects
+ * @param {Array} subjects - Array of subject objects
+ * @returns {Number} Total sum of valid credits
+ */
 function calculateTotalCredits(subjects) {
-    return subjects.reduce((sum, subject) => sum + (parseFloat(subject.credits) || 0), 0);
+    if (!subjects) return 0;
+    return subjects.reduce((sum, subject) => {
+        const credits = parseFloat(subject.credits) || 0;
+        return sum + (credits > 0 ? credits : 0);
+    }, 0);
 }
 
-function calculateCGPA() {
+/**
+ * Calculate CGPA (Cumulative GPA) across all semesters
+ * CORRECT FORMULA: (Sum of (credits × grade_point) for ALL subjects) / (Total credits)
+ * NOTE: NOT an average of semester GPAs - uses true weighted average
+ * @returns {Object} {cgpa, totalCredits, totalQualityPoints}
+ */
+function calculateCGPAValue() {
+    console.log('=== CALCULATING CGPA ===');
+    
     if (APP_STATE.semesters.length === 0) {
-        document.getElementById('overallCgpa').textContent = '0.00';
-        document.getElementById('totalCredits').textContent = '0';
-        updateCGPAChart();
-        return;
+        console.log('No semesters found. CGPA = 0.00');
+        return { cgpa: 0, totalCredits: 0, totalQualityPoints: 0 };
     }
 
-    let totalPoints = 0;
+    let totalQualityPoints = 0;
     let totalCredits = 0;
 
-    APP_STATE.semesters.forEach(semester => {
-        const sgpa = calculateSGPA(semester.subjects);
-        const credits = calculateTotalCredits(semester.subjects);
+    // Process each semester
+    APP_STATE.semesters.forEach((semester, semIdx) => {
+        console.log(`\nSemester ${semIdx + 1}:`);
         
-        totalPoints += sgpa * credits;
-        totalCredits += credits;
+        if (!semester.subjects || semester.subjects.length === 0) {
+            console.log('  (empty semester)');
+            return;
+        }
+        
+        // Process each subject
+        semester.subjects.forEach((subject, subIdx) => {
+            const credits = parseFloat(subject.credits);
+            const grade = subject.grade;
+            const gradePoint = APP_STATE.gradingSystem[grade] || 0;
+            
+            // Only include subjects with valid credits
+            if (!isNaN(credits) && credits > 0) {
+                const qualityPoints = credits * gradePoint;
+                totalQualityPoints += qualityPoints;
+                totalCredits += credits;
+                
+                console.log(`  Subject ${subIdx + 1}: "${subject.name}" | Credits: ${credits} | Grade: ${grade} (${gradePoint}) | Quality Points: ${qualityPoints}`);
+            }
+        });
     });
 
-    const cgpa = totalCredits === 0 ? 0 : totalPoints / totalCredits;
+    const cgpa = totalCredits === 0 ? 0 : totalQualityPoints / totalCredits;
     
-    document.getElementById('overallCgpa').textContent = cgpa.toFixed(2);
-    document.getElementById('totalCredits').textContent = totalCredits.toFixed(1);
+    console.log(`\n--- CGPA SUMMARY ---`);
+    console.log(`Total Semesters: ${APP_STATE.semesters.length}`);
+    console.log(`Total Quality Points: ${totalQualityPoints.toFixed(2)}`);
+    console.log(`Total Credits: ${totalCredits}`);
+    console.log(`CGPA (${totalQualityPoints.toFixed(2)} / ${totalCredits}): ${cgpa.toFixed(2)}`);
+    console.log('=== END CGPA CALCULATION ===\n');
+    
+    return {
+        cgpa: parseFloat(cgpa.toFixed(2)),
+        totalCredits,
+        totalQualityPoints: parseFloat(totalQualityPoints.toFixed(2))
+    };
+}
+
+/**
+ * Update CGPA display in the UI
+ */
+function calculateCGPA() {
+    const result = calculateCGPAValue();
+    
+    document.getElementById('overallCgpa').textContent = result.cgpa.toFixed(2);
+    document.getElementById('totalCredits').textContent = result.totalCredits.toFixed(1);
 
     // Update analysis tab and chart
     updateAnalysisTab();
@@ -464,22 +548,30 @@ function updateBreakdownDetails() {
     let html = '';
     
     APP_STATE.semesters.forEach((semester, semIdx) => {
-        if (semester.subjects.length === 0) return;
+        if (!semester.subjects || semester.subjects.length === 0) return;
 
         const sgpa = calculateSGPA(semester.subjects);
         const credits = calculateTotalCredits(semester.subjects);
         
-        let formula = '';
+        let qualityPointsFormula = '';
+        let totalQualityPoints = 0;
+        
         semester.subjects.forEach(subject => {
+            const subCredits = parseFloat(subject.credits) || 0;
             const points = APP_STATE.gradingSystem[subject.grade] || 0;
-            formula += `(${points} × ${subject.credits}) + `;
+            
+            if (subCredits > 0) {
+                const qp = subCredits * points;
+                totalQualityPoints += qp;
+                qualityPointsFormula += `(${points}×${subCredits}) + `;
+            }
         });
-        formula = formula.slice(0, -3);
+        qualityPointsFormula = qualityPointsFormula.slice(0, -3);
         
         html += `
             <div class="breakdown-item">
                 <div class="breakdown-semester">Semester ${semIdx + 1} - SGPA: ${sgpa.toFixed(2)}</div>
-                <div class="breakdown-formula">(${formula}) / ${credits}</div>
+                <div class="breakdown-formula">[${qualityPointsFormula}] / ${credits} = ${totalQualityPoints.toFixed(2)} / ${credits}</div>
             </div>
         `;
     });
