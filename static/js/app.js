@@ -419,6 +419,7 @@ function calculateCGPA() {
     if (APP_STATE.semesters.length === 0) {
         document.getElementById('overallCgpa').textContent = '0.00';
         document.getElementById('totalCredits').textContent = '0';
+        updateCGPAChart();
         return;
     }
 
@@ -438,8 +439,9 @@ function calculateCGPA() {
     document.getElementById('overallCgpa').textContent = cgpa.toFixed(2);
     document.getElementById('totalCredits').textContent = totalCredits.toFixed(1);
 
-    // Update analysis tab
+    // Update analysis tab and chart
     updateAnalysisTab();
+    updateCGPAChart();
 }
 
 // ===== Analysis Tab =====

@@ -120,14 +120,37 @@ function initChart() {
 }
 
 function updateCGPAChart() {
+    const canvas = document.getElementById('sgpaChart');
+    if (!canvas) return;
+
+    const container = canvas.parentElement;
+    
     if (APP_STATE.semesters.length === 0) {
-        const container = document.getElementById('sgpaChart')?.parentElement;
-        if (container) {
-            container.innerHTML = '<p class="empty-state">Add subjects to see the SGPA trend chart</p>';
+        // Show empty state but keep canvas for future rendering
+        if (sgpaChart) {
+            sgpaChart.destroy();
+            sgpaChart = null;
+        }
+        canvas.style.display = 'none';
+        let emptyMsg = container.querySelector('.chart-empty-state');
+        if (!emptyMsg) {
+            emptyMsg = document.createElement('p');
+            emptyMsg.className = 'empty-state chart-empty-state';
+            emptyMsg.textContent = 'Add subjects to see the SGPA trend chart';
+            container.appendChild(emptyMsg);
+        } else {
+            emptyMsg.style.display = 'block';
         }
         return;
     }
-
+    
+    // Hide empty state and show chart
+    const emptyMsg = container.querySelector('.chart-empty-state');
+    if (emptyMsg) {
+        emptyMsg.style.display = 'none';
+    }
+    canvas.style.display = 'block';
+    
     initChart();
 }
 
