@@ -6,33 +6,13 @@ from datetime import datetime
 import os
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
-from utils.ocr import get_extractor
 from utils.parser import get_parser
-
-# Gracefully import Google Vision - it's optional
-try:
-    from utils.google_vision import get_google_vision_ocr
-    GOOGLE_VISION_AVAILABLE = True
-except ImportError:
-    GOOGLE_VISION_AVAILABLE = False
-    def get_google_vision_ocr():
-        return None
 
 # Load environment variables from .env file
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
-
-# File upload configuration
-UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'png', 'bmp', 'tiff'}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-
-# Create uploads directory if it doesn't exist
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
 
 # Default grade to point mapping (can be customized)
 DEFAULT_GRADING_SYSTEM = {
@@ -45,12 +25,6 @@ DEFAULT_GRADING_SYSTEM = {
     "D": 4,
     "F": 0
 }
-
-
-# File upload helper
-def allowed_file(filename):
-    """Check if file extension is allowed"""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 class CGPACalculator:
@@ -412,86 +386,6 @@ def export_data():
         return jsonify({'error': str(e)}), 500
 
 
-
-@app.route('/api/upload', methods=['POST'])
-def upload_file():
-    """
-    Upload and extract data from marksheet document using Google Vision API
-    
-    Expects multipart form data with 'file' field
-    """
-    try:
-        # Check if file was uploaded
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file provided'}), 400
-        
-        file = request.files['file']
-        
-        if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
-        
-        # Validate file
-        if not allowed_file(file.filename):
-            return jsonify({
-                'error': f'Unsupported file type. Allowed: {", ".join(ALLOWED_EXTENSIONS)}'
-            }), 400
-        
-        # Save file temporarily
-        try:
-            filename = secure_filename(file.filename)
-            # Add timestamp to avoid conflicts
-            from time import time
-            filename = f"{int(time())}_{filename}"
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
-        except Exception as e:
-            return jsonify({'error': f'Error saving file: {str(e)}'}), 500
-        
-        # Try Google Vision API first if available
-        extracted_text = None
-        ocr = get_google_vision_ocr()
-        
-        if ocr and ocr.client:
-            extracted_text, extract_error = ocr.extract_text_from_image(filepath)
-            if extract_error:
-                print(f"Google Vision error: {extract_error}")
-                # Fall back to server OCR if available
-                extractor = get_extractor()
-                extracted_text, extract_error = extractor.extract_text(filepath)
-        else:
-            # Use fallback server-side OCR
-            extractor = get_extractor()
-            extracted_text, extract_error = extractor.extract_text(filepath)
-        
-        # Clean up file
-        try:
-            os.remove(filepath)
-        except:
-            pass
-        
-        if extract_error:
-            return jsonify({'error': extract_error}), 400
-        
-        if not extracted_text:
-            return jsonify({'error': 'Could not extract text from the document'}), 400
-        
-        # Parse data using existing parser
-        parser = get_parser()
-        parsed_data = parser.parse_marksheet(extracted_text)
-        
-        return jsonify({
-            'success': True,
-            'data': {
-                'subjects': parsed_data['subjects'],
-                'total_found': parsed_data['total_found'],
-                'low_confidence': parsed_data['low_confidence'],
-                'errors': parsed_data['errors'],
-                'has_raw_text': True
-            }
-        })
-    
-    except Exception as e:
-        return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
 
 
 @app.route('/api/extract-text', methods=['POST'])

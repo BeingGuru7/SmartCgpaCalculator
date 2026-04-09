@@ -845,20 +845,14 @@ function uploadFile(file) {
         return;
     }
     
-    // Validate file type
-    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/bmp', 'image/tiff'];
-    if (!allowedTypes.includes(file.type) && !file.name.endsWith('.pdf')) {
-        showToast('Unsupported file type. Please upload PDF or image', 'error');
+    // Validate file type - IMAGES ONLY
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/bmp', 'image/tiff'];
+    if (!allowedTypes.includes(file.type) && !['jpg', 'jpeg', 'png', 'bmp', 'tiff'].some(ext => file.name.toLowerCase().endsWith(ext))) {
+        showToast('Please upload an image file (JPG, PNG, BMP, or TIFF)', 'error');
         return;
     }
     
-    // PDF handling - send to server
-    if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-        uploadFileToServer(file);
-        return;
-    }
-    
-    // Image handling - use browser OCR
+    // Process image using browser OCR
     processImageFile(file);
 }
 
@@ -940,52 +934,6 @@ function processImageFile(file) {
     };
     
     reader.readAsDataURL(file);
-}
-
-function uploadFileToServer(file) {
-    // Show loading state
-    document.getElementById('uploadArea').style.display = 'none';
-    document.getElementById('uploadLoading').style.display = 'block';
-    document.getElementById('uploadStatus').textContent = 'Processing PDF...';
-    
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    console.log('PDF upload started:', file.name);
-    
-    fetch('/api/upload', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log('PDF server response:', data);
-        document.getElementById('uploadLoading').style.display = 'none';
-        
-        if (data.error) {
-            console.error('PDF extraction error:', data.error);
-            showToast('📄 ' + data.error, 'error');
-            document.getElementById('uploadArea').style.display = 'block';
-        } else if (data.success && data.data) {
-            // Extract from nested response
-            console.log('PDF: Found', data.data.subjects?.length || 0, 'subjects');
-            displayExtractedData(data.data);
-        } else if (data.subjects) {
-            // Direct response format
-            console.log('PDF: Found', data.subjects.length, 'subjects');
-            displayExtractedData(data);
-        } else {
-            console.warn('PDF: Unexpected response format', data);
-            showToast('No subjects extracted from PDF', 'error');
-            document.getElementById('uploadArea').style.display = 'block';
-        }
-    })
-    .catch(error => {
-        console.error('Upload error:', error);
-        document.getElementById('uploadLoading').style.display = 'none';
-        showToast('Network error: ' + error.message, 'error');
-        document.getElementById('uploadArea').style.display = 'block';
-    });
 }
 
 // Parse marksheet text and extract subjects

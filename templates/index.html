@@ -101,19 +101,20 @@
             <section class="tab-content" id="upload-tab">
                 <div class="upload-container">
                     <div class="upload-section">
-                        <h3>Upload Marksheet</h3>
-                        <p class="upload-description">Upload your marksheet (PDF or image) and we'll extract the data automatically.</p>
+                        <h3>Upload Marksheet Image</h3>
+                        <p class="upload-description">Upload a photo or screenshot of your marksheet and we'll extract the data automatically using browser-based OCR.</p>
                         
                         <div class="upload-area" id="uploadArea" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
                             <i class="fas fa-cloud-upload-alt"></i>
-                            <h4>Drag and drop your file here</h4>
+                            <h4>Drag and drop your image here</h4>
                             <p>or click to browse</p>
-                            <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,.bmp,.tiff" style="display: none;" onchange="handleFileSelect(event)">
+                            <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.bmp,.tiff" style="display: none;" onchange="handleFileSelect(event)">
                         </div>
                         
                         <div class="upload-hint">
-                            <p><i class="fas fa-info-circle"></i> Supported formats: PDF, JPG, PNG, BMP, TIFF</p>
+                            <p><i class="fas fa-info-circle"></i> Supported formats: JPG, PNG, BMP, TIFF</p>
                             <p><i class="fas fa-info-circle"></i> Maximum file size: 10MB</p>
+                            <p><i class="fas fa-lightbulb"></i> PDFs? Convert to image (screenshot or export as JPG/PNG) then upload</p>
                         </div>
                     </div>
 
