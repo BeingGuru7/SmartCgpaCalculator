@@ -76,7 +76,12 @@ class CGPACalculator:
     
     def calculate_cgpa(self, semesters: List[Dict]) -> Tuple[float, float]:
         """
-        Calculate overall CGPA across all semesters
+        Calculate overall CGPA across all semesters using weighted average formula
+        
+        IMPORTANT: Directly sums (credits × grade_point) across ALL subjects
+        to avoid rounding errors from intermediate SGPA calculations.
+        
+        Formula: CGPA = (sum of all credits × grade_points) / (total credits)
         
         Args:
             semesters: List of semester dicts with 'subjects' key
@@ -90,13 +95,27 @@ class CGPACalculator:
         total_credit_points = 0
         total_credits = 0
         
+        # Process ALL subjects directly across all semesters
         for semester in semesters:
             subjects = semester.get('subjects', [])
-            sgpa, sem_credits = self.calculate_sgpa(subjects)
             
-            # Sum across all semesters
-            total_credit_points += sgpa * sem_credits
-            total_credits += sem_credits
+            for subject in subjects:
+                try:
+                    credits = float(subject.get('credits', 0))
+                    grade = subject.get('grade', 'F')
+                    
+                    # Validate grade
+                    if grade not in self.grading_system:
+                        continue
+                    
+                    if credits <= 0:
+                        continue
+                    
+                    grade_point = self.grading_system[grade]
+                    total_credit_points += credits * grade_point
+                    total_credits += credits
+                except (ValueError, TypeError):
+                    continue
         
         if total_credits == 0:
             return 0.0, 0.0
